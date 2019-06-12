@@ -1,0 +1,3 @@
+Normalize volume (TRUE,FALSE)=TRUE
+Exclude liquid (TRUE,FALSE)=TRUE
+Plot x-axis (Step,Temperature,Pressure,Crystallized_frac)=Temperature
