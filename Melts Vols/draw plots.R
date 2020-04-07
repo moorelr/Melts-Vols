@@ -134,7 +134,7 @@ flag <- numeric(0)
 for(i in 1:nrow(report)){ # Clean up empty rows
   if(report$Mass[i] == 0){flag <- c(flag, i)}
 }
-report <- report[-flag,]
+if(length(flag) > 0){report <- report[-flag,]}
 
 # ... ok, NOW calculate volume parameters for plot
 y_bottom <- rep(0, nrow(report))
