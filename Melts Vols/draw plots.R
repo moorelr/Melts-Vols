@@ -1,6 +1,23 @@
 # moorelr/Melts-Vols is licensed under The MIT License
 # Copyright 2019 Lowell R. Moore
 
+
+# Start ####
+
+make_beep <- FALSE       # Make a beep noise at the end. Requires "beepr" package.
+status_updates <- TRUE   # Print status updates while running.
+pause_time <- 2          # Delay time if status updates are used
+
+if(make_beep){library(beepr)}
+print_status <- function(message){
+  if(status_updates){
+    print(message)
+    Sys.sleep(pause_time)
+  }
+}
+
+print_status("Setting things up...")
+
 settings <- read.delim("SETTINGS.txt", sep = "=", header = FALSE, stringsAsFactors = FALSE)
 
 # Default settings
@@ -41,7 +58,8 @@ get_PT <- function(string){
   return(c(temperature, pressure))
 }
 
-# Calculate volume parameters for plot
+print_status("Calculating volume parameters for the plot...")
+
 ignore_phases <- c("Total solids", "System")
 if(exclude_liquid){ignore_phases <- c(ignore_phases, "Liquid")}
 
@@ -56,7 +74,9 @@ report <- data.frame(Name = "", Mass = "", Density = ""
 temp_i <- 0
 press_i <- 0
 
-# Scan through melts.out file
+# Scan through melts.out file and retrieve data ####
+print_status("Parsing MELTS output file...")
+
 for(i in 1:length(melts)){
   # Update state info
   if(grepl("T = ", melts[i])){
@@ -65,7 +85,7 @@ for(i in 1:length(melts)){
   }
   
   # Assign phase info
-  if(grepl("mass = ", melts[i])){
+  if(grepl("  mass = ", melts[i])){
     print(paste("Scanning line ", i, " of ", length(melts), ".", sep = ""))
     report <- rbind(report, c(get_info(melts[i]), temp_i, press_i))
   }
@@ -97,7 +117,16 @@ for(i in 1:nrow(report)){
 }
 report <- cbind(Step, report)
 
-# Filter for "duplicate" phases
+# Filter for "duplicate" phases ####
+
+# I haven't updated this code to account for immiscibility
+#   (e.g. two feldspars) because, at the initial time of
+#   writing, immiscible phases were labeled identically.
+#   Therefore, phases with the same name are combined into
+#   the same polygon.
+
+print_status("Filtering duplicate/immiscible phases...")
+
 for(i in unique(report$Step)){ # going to do this for every time step
   step_i_rows <- which(report$Step == i) # Get the rows in the report variable for step_i
   
@@ -136,7 +165,34 @@ for(i in 1:nrow(report)){ # Clean up empty rows
 }
 if(length(flag) > 0){report <- report[-flag,]}
 
-# ... ok, NOW calculate volume parameters for plot
+# Make sure phases always appear in the same order of the report ####
+print_status("Sorting phases so they always stack in the same order...")
+
+if(TRUE){
+  order_key <- cbind.data.frame(1:length(unique(report$Name)), unique(report$Name))
+  # order_key <- cbind.data.frame(1:length(phases), phases)
+  colnames(order_key) <- c("Rank", "Name")
+  order_key$Rank <- as.numeric(order_key$Rank)
+  order_key$Name <- as.character(order_key$Name)
+  
+  for(step_i in unique(report$Step)){
+    
+    #print(step_i)
+    # Debug : step_i <- 1
+    # Debug : step_i <- 31
+    step_i_rows <- which(report$Step == step_i)
+    
+    chunk_i <- report[step_i_rows,]
+    match_i <- match(order_key$Name, chunk_i$Name)
+    match_i <- match_i[!is.na(match_i)]
+    rank_i <- rank(match_i)
+    report[step_i_rows,] <- report[step_i_rows[rank_i],]
+  }
+}
+
+# Calculate polygon areas for plot ####
+print_status("Calculating volume parameters for plot...")
+
 y_bottom <- rep(0, nrow(report))
 y_top <- rep(0, nrow(report))
 
@@ -182,8 +238,11 @@ for(i in unique(report$Step)){ # going to do this for every time step
 # Add plotting parameters to report dataframe
 report <- cbind(report, Crystallized_frac, y_bottom, y_top)
 
-# Draw plot
-print("Saving phase volume figure...")
+# Draw plot ####
+
+# Saves a .pdf version of the plot to working directory
+
+print_status("Saving phase volume figure...")
 pdf(file = "figure.pdf", width = 8, height = 6, useDingbats = FALSE)
 
 plot(0, 0, type = "n"
@@ -210,8 +269,11 @@ for(i in 1:length(phases)){
 
 dev.off()
 
-# Plot key
-print("Saving color key...")
+# Plot key ####
+
+# This section is probably unnecessary after adding labels to the plot!
+
+print_status("Saving color key...")
 pdf(file = "key.pdf", width = 4, height = 4, useDingbats = FALSE)
 plot(0, 0, type = "n"
      , xlim = c(0, 10), ylim = c(0, length(phases)+1)
@@ -224,7 +286,12 @@ for(i in 1:length(phases)){
 }
 dev.off()
 
-print("Saving summary report...")
+# Save summary report ####
+
+# Table version of data used in the plots
+
+print_status("Saving summary report...")
 write.csv(x = report, file = "report.csv", quote = FALSE, row.names = FALSE)
 
-print("All done!")
+if(make_beep){beep(1)}
+print_status("All done!")
