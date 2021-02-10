@@ -1,1 +1,0 @@
-rscript "draw plots.R"
